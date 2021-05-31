@@ -1,0 +1,631 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="18.11.1.0">
+<procedure name="main">
+<interface/>
+<body>
+<c>*1</c>
+<c>*关闭窗体</c>
+<l>dev_update_off ()</l>
+<l>dev_close_window ()</l>
+<c>*新建窗体</c>
+<l>WindowWidth := 800</l>
+<l>WindowHeight := 600</l>
+<l>dev_open_window_fit_size (0, 0, WindowWidth, WindowHeight, -1, -1, WindowHandle)</l>
+<c>*字体</c>
+<l>set_display_font (WindowHandle, 16, 'mono', 'true', 'false')</l>
+<c></c>
+<c>* </c>
+<l>set_system ('seed_rand', 42)</l>
+<c></c>
+<c>*2</c>
+<c>*选取深度学习分类模型</c>
+<l>read_dl_classifier ('pretrained_dl_classifier_compact.hdl', DLClassifierHandle)</l>
+<c>*原始数据存放路径</c>
+<l>RawDataFolder :='E:/视觉/halcon_深度学习/DeepLearning/分类检测/Images/' + ['橙子','梨','苹果','香蕉']</l>
+<c>*根据原始数据打标签  参数：输入路径，方法，所有图片路径，所有图片标签，所有标签索引，标签类型</c>
+<l>read_dl_classifier_data_set (RawDataFolder, 'last_folder', RawImageFiles, Labels, LabelIndices, Classes)</l>
+<c>*处理后图片存放文件夹的名称</c>
+<l>PreprocessedFolder := 'E:/视觉/halcon_深度学习/DeepLearning/分类检测/分类检测hobj'</l>
+<c>*false不覆盖处理后的图片</c>
+<l>OverwritePreprocessingFolder := false</l>
+<c>*true执行完后删除保存的图片</c>
+<l>RemovePreprocessingAfterExample := true</l>
+<c></c>
+<c>*3</c>
+<c>*将图像打标签，并进行处理</c>
+<c>*判断文件是否存在</c>
+<l>file_exists (PreprocessedFolder, FileExists)</l>
+<c>*文件不存在或者覆盖处理后的图片</c>
+<l>if (not FileExists or OverwritePreprocessingFolder)</l>
+<c>    *如果覆盖时，文件夹存在，则删除</c>
+<l>    if (FileExists)</l>
+<l>        remove_dir_recursively (PreprocessedFolder)</l>
+<l>    endif</l>
+<c>    *文件不存在，则创建</c>
+<l>    make_dir (PreprocessedFolder)</l>
+<l>    for I := 0 to |Classes| - 1 by 1</l>
+<l>        make_dir (PreprocessedFolder + '/' + Classes[I])</l>
+<l>    endfor</l>
+<c>        *定义待存放文件路径和名称</c>
+<c>    *将文件名解析为目录，基本文件名和扩展名</c>
+<l>    parse_filename (RawImageFiles, BaseNames, Extensions, Directories)</l>
+<c>    *分类检测/梨/梨_001.hobj</c>
+<l>    ObjectFilesOut := PreprocessedFolder + '/' + Labels + '/' + BaseNames + '.hobj' </l>
+<c>    *检查预处理文件夹中的输出文件名是否重叠</c>
+<l>    check_output_file_names_for_duplicates (RawImageFiles, ObjectFilesOut)</l>
+<c>    </c>
+<c>    *自定义函数： 处理输入图像并保存为.hobj格式文件</c>
+<c>    *每个样本图才处理成224*224分辨率、3通道、-127到128亮度级图像</c>
+<l>    Processing_images_and_write_files (RawImageFiles, ObjectFilesOut, PreprocessedFolder, WindowHandle)</l>
+<c></c>
+<c>    *自带的本地函数处理图像</c>
+<l>    *for I := 0 to |RawImageFiles| - 1 by 1</l>
+<l>    *    read_image (Image, RawImageFiles[I])</l>
+<c>    *    *处理图像</c>
+<l>    *    preprocess_dl_fruit_example (Image, ImagePreprocessed, DLClassifierHandle)</l>
+<c>    *    *写入文件</c>
+<l>    *    write_object (ImagePreprocessed, ObjectFilesOut[I])</l>
+<l>    *    dev_disp_preprocessing_progress (I, RawImageFiles, PreprocessedFolder, WindowHandle)</l>
+<l>    *endfor</l>
+<c>     </c>
+<c>     </c>
+<l>    dev_clear_window ()</l>
+<l>    dev_disp_text ('预处理完成。', 'window', 'top', 'left', 'black', [], [])</l>
+<l>endif</l>
+<c></c>
+<c>*4</c>
+<c>*将数据分为 训练集，验证集，测试集</c>
+<c>*读取处理后的数据</c>
+<l>read_dl_classifier_data_set (PreprocessedFolder, 'last_folder', ImageFiles, Labels, LabelsIndices, Classes)</l>
+<c>*将数据分为三个子集，训练集占：70%、验证集占：15%、测试集占：15%</c>
+<l>TrainingPercent := 70</l>
+<l>ValidationPercent := 15</l>
+<c>*将数据拆分 参数：输入图像路径、输入的标签、训练%，验证%、返回用于训练的图像、返会用于训练图像的标签、返回用于验证的图像、返会用于验证图像的标签、返回用于测试的图像、返会用于测试图像的标签</c>
+<l>split_dl_classifier_data_set (ImageFiles, Labels, TrainingPercent, ValidationPercent, TrainingImages, TrainingLabels, ValidationImages, ValidationLabels, TestImages, TestLabels)</l>
+<c></c>
+<c>*5</c>
+<c>*设置网络训练参数，为了对神经网络进行再训练，我们必须指定分类问题的类名</c>
+<c>*设置网络类名</c>
+<l>set_dl_classifier_param (DLClassifierHandle, 'classes', Classes)</l>
+<c>*设置网络训练批处理数</c>
+<l>BatchSize := 25</l>
+<l>set_dl_classifier_param (DLClassifierHandle, 'batch_size', BatchSize)</l>
+<c>*设置运行环境</c>
+<l>try</l>
+<l>    set_dl_classifier_param (DLClassifierHandle, 'runtime_init', 'immediately')</l>
+<l>catch (Exception)</l>
+<c>    *显示相应类型的错误</c>
+<l>    dev_disp_error_text (Exception)</l>
+<l>    if (RemovePreprocessingAfterExample and Exception[0] != 4104)</l>
+<l>        remove_dir_recursively (PreprocessedFolder)</l>
+<l>        dev_disp_text ('文件夹中的预处理数据 "' + PreprocessedFolder + '" 已删除。', 'window', 'bottom', 'left', 'black', [], [])</l>
+<l>    endif</l>
+<l>    stop ()</l>
+<l>endtry</l>
+<c>*学习率</c>
+<l>InitialLearningRate := 0.001</l>
+<l>set_dl_classifier_param (DLClassifierHandle, 'learning_rate', InitialLearningRate)</l>
+<c>*每30次根据下降因子更新学习率</c>
+<l>LearningRateStepEveryNthEpoch := 30</l>
+<l>LearningRateStepRatio := 0.1</l>
+<c>*迭代次数</c>
+<l>NumEpochs := 100</l>
+<l>dev_clear_window ()</l>
+<l>dev_disp_text ('训练已经开始...', 'window', 'top', 'left', 'black', [], [])</l>
+<c>*每迭代4次绘制一下图</c>
+<l>PlotEveryNthEpoch := 4</l>
+<c>*生成的网络模型的存放路径</c>
+<l>path := 'E:/视觉/halcon_深度学习/DeepLearning/分类检测/'</l>
+<c>*训练好的网络模型名称</c>
+<l>FileName := path + 'classifier_test.hdl'</l>
+<c>*训练模型</c>
+<l>train_fruit_classifier (DLClassifierHandle, FileName, NumEpochs, TrainingImages, TrainingLabels, ValidationImages, ValidationLabels, LearningRateStepEveryNthEpoch, LearningRateStepRatio, PlotEveryNthEpoch, WindowHandle)</l>
+<l>dev_disp_text ('Press Run (F5) to continue', 'window', 'bottom', 'right', 'black', [], [])</l>
+<l>stop ()</l>
+<c></c>
+<c>*6</c>
+<c>*验证</c>
+<c>*加载训练好的网络模型</c>
+<l>read_dl_classifier (FileName, DLClassifierHandle)</l>
+<c>*计算验证数据集的混淆矩阵</c>
+<l>get_predicted_classes (ValidationImages, DLClassifierHandle, PredictedClassesValidation)</l>
+<c>*生成混淆矩阵模型</c>
+<l>gen_confusion_matrix (ValidationLabels, PredictedClassesValidation, [], [], WindowHandle, ConfusionMatrix)</l>
+<l>dev_disp_text ('Validation data', 'window', 'top', 'left', 'gray', 'box', 'false')</l>
+<l>dev_disp_text ('Press Run (F5) to continue', 'window', 'bottom', 'right', 'black', [], [])</l>
+<l>stop ()</l>
+<l>dev_clear_window ()</l>
+<c></c>
+<c>*7</c>
+<c>*测试</c>
+<c>*加载训练好的网络模型</c>
+<l>read_dl_classifier (FileName, DLClassifierHandle)</l>
+<c>*单张图片测试</c>
+<l>set_dl_classifier_param (DLClassifierHandle, 'batch_size', 1)</l>
+<c>*测试是否可以在CPU环境下运行</c>
+<l>try</l>
+<l>    set_dl_classifier_param (DLClassifierHandle, 'runtime', 'cpu')</l>
+<l>    Runtime := 'cpu'</l>
+<l>catch (Exception)</l>
+<l>    Runtime := 'gpu'</l>
+<l>endtry</l>
+<c>*立即初始化运行时环境</c>
+<l>set_dl_classifier_param (DLClassifierHandle, 'runtime_init', 'immediately')</l>
+<c>* </c>
+<l>dev_resize_window_fit_size (0, 0, WindowWidth, WindowHeight, -1, -1)</l>
+<l>dev_disp_inference_text (Runtime)</l>
+<l>stop ()</l>
+<c></c>
+<c>*循环测试分类结果</c>
+<l>for Index := 0 to 20 by 1</l>
+<l>    ImageFile := RawImageFiles[floor(rand(1) * |RawImageFiles|)]</l>
+<l>    read_image (Image, ImageFile)</l>
+<l>    dev_resize_window_fit_image (Image, 0, 0, -1, -1)</l>
+<c>    </c>
+<c>    *处理图像</c>
+<l>*     DlImageWidth := 224</l>
+<l>*     DlImageHeight := 224</l>
+<l>*     DlNumChannels := 3</l>
+<l>*     DlRangeMin := -127.0</l>
+<l>*     DlRangeMax := 128.0</l>
+<c>    *缩放图像</c>
+<l>*     zoom_image_size (Image, Image, DlImageWidth, DlImageHeight, 'constant')</l>
+<c>    *将图像的灰度缩放成网络model需求范围</c>
+<l>*     convert_image_type (Image, Image, 'real')</l>
+<l>*     RescaleRange:=(DlRangeMax - DlRangeMin)/255.0</l>
+<l>*     scale_image (Image, Image, RescaleRange, DlRangeMin)</l>
+<l>*     count_channels (Image, Channel)</l>
+<c>    *如果图片不是三通道图，就需要将图像合成三通道图</c>
+<l>*     if (Channel != DlNumChannels)</l>
+<l>*         compose3(Image, Image, Image, Image)</l>
+<l>*     endif</l>
+<c></c>
+<c>    *案例中的图像处理</c>
+<l>    preprocess_dl_fruit_example (Image, ImagePreprocessed, DLClassifierHandle)</l>
+<c>    </c>
+<c>    *使用已经训练好的深度学习网络识别图像  参数：输入图像、分类器的句柄、分类的结果</c>
+<l>    apply_dl_classifier (ImagePreprocessed, DLClassifierHandle, DLClassifierResultHandle)</l>
+<c>    *获取识别结果  参数：分类的结果，批处理中图像的索引，通用参数的名称，通用参数的值</c>
+<l>    get_dl_classifier_result (DLClassifierResultHandle, 'all', 'predicted_classes', PredictedClass)</l>
+<c>    * </c>
+<l>    dev_display (Image)</l>
+<l>    Text := '预测类为: ' + PredictedClass</l>
+<l>    dev_disp_text (Text, 'window', 'top', 'left', 'forest green', 'box', 'false')</l>
+<l>    dev_disp_text ('Press Run (F5) to continue', 'window', 'bottom', 'right', 'black', [], [])</l>
+<l>    stop ()</l>
+<l>endfor</l>
+<l>stop ()</l>
+<l>if (RemovePreprocessingAfterExample)</l>
+<l>    remove_dir_recursively (PreprocessedFolder)</l>
+<l>    dev_disp_text ('程序结束，已删除预处理的数据。', 'window', 'bottom', 'right', 'black', [], [])</l>
+<l>else</l>
+<l>    dev_disp_text ('      程序结束      ', 'window', 'bottom', 'right', 'black', [], [])</l>
+<l>endif</l>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+<procedure name="dev_disp_inference_text">
+<interface>
+<ic>
+<par name="Runtime" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<l>Text := '测试'</l>
+<l>Text[|Text|] := '将将测试集的图片进行测试 '</l>
+<l>if (Runtime == 'cpu')</l>
+<l>    Text[|Text|] := '正在使用\'cpu\' 运行'</l>
+<l>endif</l>
+<c>* </c>
+<l>dev_clear_window ()</l>
+<l>dev_disp_text (Text, 'window', 'top', 'left', 'white', 'box', 'false')</l>
+<l>dev_disp_text ('Press Run (F5) to continue', 'window', 'bottom', 'right', 'black', [], [])</l>
+<l>return ()</l>
+</body>
+<docu id="dev_disp_inference_text">
+<parameters>
+<parameter id="Runtime"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="check_output_file_names_for_duplicates">
+<interface>
+<ic>
+<par name="RawImageFiles" base_type="ctrl" dimension="0"/>
+<par name="ObjectFilesOut" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<l>CheckOutputFiles := uniq(sort(ObjectFilesOut))</l>
+<l>if (|CheckOutputFiles| != |RawImageFiles|)</l>
+<l>    SortedImageFiles := sort(ObjectFilesOut)</l>
+<l>    for I := 0 to |SortedImageFiles| - 1 by 1</l>
+<l>        if (SortedImageFiles[I] != CheckOutputFiles[I])</l>
+<l>            throw ('Error some file(s) have the same output filenames: ' + SortedImageFiles[I])</l>
+<l>        endif</l>
+<l>    endfor</l>
+<l>endif</l>
+<l>return ()</l>
+</body>
+<docu id="check_output_file_names_for_duplicates">
+<parameters>
+<parameter id="ObjectFilesOut"/>
+<parameter id="RawImageFiles"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="dev_disp_error_text">
+<interface>
+<ic>
+<par name="Exception" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<l>ErrorAndAdviceText := '运行时初始化期间出错。'</l>
+<l>ErrorAndAdviceText := [ErrorAndAdviceText,'']</l>
+<l>ErrorAndAdviceText := [ErrorAndAdviceText,'Error ' + Exception[0] + ': \'' + Exception[2] + '\'']</l>
+<l>if (Exception[0] == 4104)</l>
+<c>    * In case of out of device memory we can give advice.</c>
+<l>    ErrorAndAdviceText := [ErrorAndAdviceText,'']</l>
+<l>    ErrorAndAdviceText := [ErrorAndAdviceText,'安装具有更多RAM的GPU或减小批处理大小。']</l>
+<l>    ErrorAndAdviceText := [ErrorAndAdviceText,'']</l>
+<l>    ErrorAndAdviceText := [ErrorAndAdviceText,'请注意，更改批量大小将对结果产生影响。']</l>
+<l>endif</l>
+<l>dev_clear_window ()</l>
+<c>* Display text with line breaks after 60 characters.</c>
+<l>dev_disp_text (regexp_replace(ErrorAndAdviceText + ' ',['(.{0,60})\\s','replace_all'],'$1\n'), 'window', 'center', 'left', 'red', [], [])</l>
+<l>return ()</l>
+</body>
+<docu id="dev_disp_error_text">
+<parameters>
+<parameter id="Exception"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="train_fruit_classifier">
+<interface>
+<ic>
+<par name="DLClassifierHandle" base_type="ctrl" dimension="0"/>
+<par name="FileName" base_type="ctrl" dimension="0"/>
+<par name="NumEpochs" base_type="ctrl" dimension="0"/>
+<par name="TrainingImages" base_type="ctrl" dimension="0"/>
+<par name="TrainingLabels" base_type="ctrl" dimension="0"/>
+<par name="ValidationImages" base_type="ctrl" dimension="0"/>
+<par name="ValidationLabels" base_type="ctrl" dimension="0"/>
+<par name="LearningRateStepEveryNthEpoch" base_type="ctrl" dimension="0"/>
+<par name="LearningRateStepRatio" base_type="ctrl" dimension="0"/>
+<par name="PlotEveryNthEpoch" base_type="ctrl" dimension="0"/>
+<par name="WindowHandle" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<c>* For the plot during training,</c>
+<c>* we need to concatenate some intermediate results.</c>
+<l>TrainingErrors := []</l>
+<l>ValidationErrors := []</l>
+<l>LearningRates := []</l>
+<l>Epochs := []</l>
+<l>LossByIteration := []</l>
+<l>get_dl_classifier_param (DLClassifierHandle, 'batch_size', BatchSize)</l>
+<l>MinValidationError := 1</l>
+<c>* </c>
+<c>* Create a tuple that includes all the iterations</c>
+<c>* where the plot should be computed (including the last ieration).</c>
+<l>NumBatchesInEpoch := int(floor(|TrainingImages| / real(BatchSize)))</l>
+<l>NumTotalIterations := (NumBatchesInEpoch * NumEpochs) - 1</l>
+<l>PlottedIterations := round([NumBatchesInEpoch * [0:PlotEveryNthEpoch:NumEpochs - 1],NumTotalIterations])</l>
+<c>* </c>
+<c>* TrainSequence is used for easier indexing of the training data.</c>
+<l>tuple_gen_sequence (0, |TrainingImages| - 1, 1, TrainSequence)</l>
+<c>* </c>
+<c>* Select a subset of the training data set</c>
+<c>* in order to obtain a fast approximation</c>
+<c>* of the training error during training (plotting).</c>
+<l>SelectPercentageTrainingImages := 100</l>
+<l>select_percentage_dl_classifier_data (TrainingImages, TrainingLabels, SelectPercentageTrainingImages, TrainingImagesSelected, TrainingLabelsSelected)</l>
+<c>* </c>
+<l>for Epoch := 0 to NumEpochs - 1 by 1</l>
+<c>    * In order to get randomness in each epoch,</c>
+<c>    * the training set is shuffled every epoch.</c>
+<l>    tuple_shuffle (TrainSequence, TrainSequence)</l>
+<l>    for Iteration := 0 to NumBatchesInEpoch - 1 by 1</l>
+<c>        * Select a batch from the training data set.</c>
+<l>        BatchStart := Iteration * BatchSize</l>
+<l>        BatchEnd := BatchStart + (BatchSize - 1)</l>
+<l>        BatchIndices := TrainSequence[BatchStart:BatchEnd]</l>
+<l>        BatchImageFiles := TrainingImages[BatchIndices]</l>
+<l>        BatchLabels := TrainingLabels[BatchIndices]</l>
+<c>        * </c>
+<c>        * Read the image of the current batch.</c>
+<l>        read_image (BatchImages, BatchImageFiles)</l>
+<c>        * Augment the images to get a better variety of training images.</c>
+<l>        GenParamName := 'mirror'</l>
+<l>        GenParamValue := 'rc'</l>
+<l>        augment_images (BatchImages, BatchImages, GenParamName, GenParamValue)</l>
+<c>        * </c>
+<c>        * Train the network with these images and ground truth labels.</c>
+<l>        train_dl_classifier_batch (BatchImages, DLClassifierHandle, BatchLabels, DLClassifierTrainResultHandle)</l>
+<c>        * You can access the current value of the loss function,</c>
+<c>        * which should decrease during the training.</c>
+<l>        get_dl_classifier_train_result (DLClassifierTrainResultHandle, 'loss', Loss)</l>
+<c>        * Store the loss in a tuple .</c>
+<l>        LossByIteration := [LossByIteration,Loss]</l>
+<c>        * </c>
+<c>        * In regular intervals, we want to evaluate</c>
+<c>        * how well our classifier performs.</c>
+<l>        CurrentIteration := int(Iteration + (NumBatchesInEpoch * Epoch))</l>
+<l>        if (sum(CurrentIteration [==] PlottedIterations))</l>
+<c>            * Plot the progress regularly.</c>
+<c>            * Evaluate the current classifier on the training and validation set.</c>
+<l>            apply_dl_classifier_batchwise (TrainingImagesSelected, DLClassifierHandle, TrainingDLClassifierResultIDs, TrainingPredictedLabels, TrainingConfidences)</l>
+<l>            apply_dl_classifier_batchwise (ValidationImages, DLClassifierHandle, ValidationDLClassifierResultIDs, ValidationPredictedLabels, ValidationConfidences)</l>
+<c>            * Evaluate the top-1 error on each dataset.</c>
+<l>            evaluate_dl_classifier (TrainingLabelsSelected, DLClassifierHandle, TrainingDLClassifierResultIDs, 'top1_error', 'global', TrainingTop1Error)</l>
+<l>            evaluate_dl_classifier (ValidationLabels, DLClassifierHandle, ValidationDLClassifierResultIDs, 'top1_error', 'global', ValidationTop1Error)</l>
+<c>            * Concatenate the values for the plot.</c>
+<l>            get_dl_classifier_param (DLClassifierHandle, 'learning_rate', LearningRate)</l>
+<l>            TrainingErrors := [TrainingErrors,TrainingTop1Error]</l>
+<l>            ValidationErrors := [ValidationErrors,ValidationTop1Error]</l>
+<l>            LearningRates := [LearningRates,LearningRate]</l>
+<l>            Epochs := [Epochs,PlottedIterations[|Epochs|] / real(NumBatchesInEpoch)]</l>
+<c>            * Plot validation and error against the epochs in order to</c>
+<c>            * observe the progress of the training.</c>
+<l>            plot_dl_classifier_training_progress (TrainingErrors, ValidationErrors, LearningRates, Epochs, NumEpochs, WindowHandle)</l>
+<l>            if (ValidationTop1Error &lt;= MinValidationError)</l>
+<l>                write_dl_classifier (DLClassifierHandle, FileName)</l>
+<l>                MinValidationError := ValidationTop1Error</l>
+<l>            endif</l>
+<l>        endif</l>
+<l>    endfor</l>
+<c>    * Reduce the learning rate every nth epoch.</c>
+<l>    if ((Epoch + 1) % LearningRateStepEveryNthEpoch == 0)</l>
+<l>        set_dl_classifier_param (DLClassifierHandle, 'learning_rate', LearningRate * LearningRateStepRatio)</l>
+<l>        get_dl_classifier_param (DLClassifierHandle, 'learning_rate', LearningRate)</l>
+<l>    endif</l>
+<l>endfor</l>
+<l>stop ()</l>
+<l>return ()</l>
+</body>
+<docu id="train_fruit_classifier">
+<parameters>
+<parameter id="DLClassifierHandle"/>
+<parameter id="FileName"/>
+<parameter id="LearningRateStepEveryNthEpoch"/>
+<parameter id="LearningRateStepRatio"/>
+<parameter id="NumEpochs"/>
+<parameter id="PlotEveryNthEpoch"/>
+<parameter id="TrainingImages"/>
+<parameter id="TrainingLabels"/>
+<parameter id="ValidationImages"/>
+<parameter id="ValidationLabels"/>
+<parameter id="WindowHandle"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="get_predicted_classes">
+<interface>
+<ic>
+<par name="Images" base_type="ctrl" dimension="0"/>
+<par name="DLClassifierHandle" base_type="ctrl" dimension="0"/>
+</ic>
+<oc>
+<par name="Top1PredictedClasses" base_type="ctrl" dimension="0"/>
+</oc>
+</interface>
+<body>
+<l>apply_dl_classifier_batchwise (Images, DLClassifierHandle, DLClassifierResultIDsTest, PredictedClasses, Confidences)</l>
+<c>* </c>
+<l>Top1PredictedClasses := []</l>
+<l>for Index := 0 to PredictedClasses.length() - 1 by 1</l>
+<l>    Top1PredictedClasses := [Top1PredictedClasses,PredictedClasses.at(Index)[0]]</l>
+<l>endfor</l>
+<l>return ()</l>
+</body>
+<docu id="get_predicted_classes">
+<parameters>
+<parameter id="DLClassifierHandle"/>
+<parameter id="Images"/>
+<parameter id="Top1PredictedClasses"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="preprocess_dl_fruit_example">
+<interface>
+<io>
+<par name="Image" base_type="iconic" dimension="0"/>
+</io>
+<oo>
+<par name="ImagePreprocessed" base_type="iconic" dimension="0"/>
+</oo>
+<ic>
+<par name="DLClassifierHandle" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<c>*</c>
+<c>*在这个预处理过程中，我们将删除背景。</c>
+<c>*利用图像中的光照对水果进行分割。</c>
+<c>*首先，我们找回蓝色通道。</c>
+<c>*在这个通道里水果应该很暗，因为我们的水果是绿色/红色的。</c>
+<l>image_to_channels (Image, ImagesRGB)</l>
+<l>select_obj (ImagesRGB, ImagesB, 3)</l>
+<c>*现在我们试着将水果或部分水果将背景分割</c>
+<l>threshold (ImagesB, Region, 0, 10)</l>
+<l>connection (Region, ConnectedRegions)</l>
+<c>*</c>
+<c>*接下来我们将选择最有可能是水果的地区。</c>
+<c>*</c>
+<c>*创建一个稍后在交叉点测试中使用的帧。</c>
+<l>get_image_size (Image, Width, Height)</l>
+<l>gen_rectangle1 (Rectangle2, 0, 0, Height, Width)</l>
+<l>gen_rectangle1 (Rectangle1, 1, 1, Height - 2, Width - 2)</l>
+<l>difference (Rectangle2, Rectangle1, Frame)</l>
+<c>* </c>
+<c>* Sort the regions by Area</c>
+<c>* (fruit is usually among the largest regions).</c>
+<l>area_center (ConnectedRegions, Area, Row, Column)</l>
+<l>tuple_sort_index (Area, Indices)</l>
+<l>tuple_inverse (Indices, Indices)</l>
+<l>select_obj (ConnectedRegions, ConnectedRegions, Indices + 1)</l>
+<c>* </c>
+<c>* Now get the biggest Region</c>
+<c>* which is NOT intersecting with the Frame.</c>
+<l>count_obj (ConnectedRegions, Number)</l>
+<l>select_obj (ConnectedRegions, Region, 1)</l>
+<l>for I := 1 to Number by 1</l>
+<l>    select_obj (ConnectedRegions, ObjectSelected, I)</l>
+<l>    intersection (ObjectSelected, Frame, RegionIntersection)</l>
+<l>    area_center (RegionIntersection, AreaIntersect, _, _)</l>
+<l>    if (AreaIntersect &lt; 50)</l>
+<c>        * If the intersection is small,</c>
+<c>        * the region is still accepted.</c>
+<l>        Region := ObjectSelected</l>
+<l>        break</l>
+<l>    endif</l>
+<l>endfor</l>
+<c>* </c>
+<c>* A final check will test if the selected region is very small.</c>
+<l>area_center (Region, Area, _, _)</l>
+<l>if (Area &lt; 50 * 50)</l>
+<c>    * In this case, we use the largest region.</c>
+<l>    select_obj (ConnectedRegions, Region, 1)</l>
+<l>endif</l>
+<c></c>
+<c>* We reduce the domain to the smallest rectangle</c>
+<c>* and feed this into preprocess_dl_classifier_images.</c>
+<l>smallest_rectangle1 (Region, Row11, Column11, Row2, Column2)</l>
+<l>gen_rectangle1 (Rectangle, Row11, Column11, Row2, Column2)</l>
+<l>reduce_domain (Image, Rectangle, ImageReduced)</l>
+<c>* </c>
+<l>PreprocessingGenParamName := 'domain_handling'</l>
+<l>PreprocessingGenParamValue := 'crop_domain'</l>
+<l>preprocess_dl_classifier_images (ImageReduced, ImagePreprocessed, PreprocessingGenParamName, PreprocessingGenParamValue, DLClassifierHandle)</l>
+<l>return ()</l>
+</body>
+<docu id="preprocess_dl_fruit_example">
+<abstract lang="en_US">Preprocesses the fruit classification example images suitable for classification.</abstract>
+<parameters>
+<parameter id="DLClassifierHandle">
+<default_type>integer</default_type>
+<mixed_type>false</mixed_type>
+<multivalue>false</multivalue>
+<sem_type>dl_classifier</sem_type>
+<type_list>
+<item>integer</item>
+</type_list>
+</parameter>
+<parameter id="Image">
+<multichannel>true</multichannel>
+<multivalue>false</multivalue>
+<sem_type>image</sem_type>
+<type_list>
+<item>byte</item>
+</type_list>
+</parameter>
+<parameter id="ImagePreprocessed">
+<multichannel>true</multichannel>
+<multivalue>false</multivalue>
+<sem_type>image</sem_type>
+<type_list>
+<item>real</item>
+</type_list>
+</parameter>
+</parameters>
+</docu>
+</procedure>
+<procedure name="dev_disp_preprocessing_progress">
+<interface>
+<ic>
+<par name="I" base_type="ctrl" dimension="0"/>
+<par name="RawImageFiles" base_type="ctrl" dimension="0"/>
+<par name="PreprocessedFolder" base_type="ctrl" dimension="0"/>
+<par name="WindowHandle" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<l>if (I % 10 == 9)</l>
+<l>    set_window_param (WindowHandle, 'flush', 'false')</l>
+<l>    dev_clear_window ()</l>
+<l>    Text := 'Preprocessing the data set... (' + (I + 1) + ' of ' + |RawImageFiles| + ')'</l>
+<l>    Text[|Text|] := ''</l>
+<l>    Text[|Text|] := '预处理的图像被写入文件夹'</l>
+<l>    Text[|Text|] := '\'' + PreprocessedFolder + '\','</l>
+<l>    Text[|Text|] := '由变量PreprocessedFolder指定。'</l>
+<l>    Text[|Text|] := '预处理后的图像将在程序结束时自动删除。'</l>
+<l>    dev_disp_text (Text, 'window', 'top', 'left', 'white', 'box', 'false')</l>
+<l>    flush_buffer (WindowHandle)</l>
+<l>    set_window_param (WindowHandle, 'flush', 'true')</l>
+<l>endif</l>
+<l>return ()</l>
+</body>
+<docu id="dev_disp_preprocessing_progress">
+<parameters>
+<parameter id="I"/>
+<parameter id="PreprocessedFolder"/>
+<parameter id="RawImageFiles"/>
+<parameter id="WindowHandle"/>
+</parameters>
+</docu>
+</procedure>
+<procedure name="Processing_images_and_write_files">
+<interface>
+<ic>
+<par name="RawImageFiles" base_type="ctrl" dimension="0"/>
+<par name="ObjectFilesOut" base_type="ctrl" dimension="0"/>
+<par name="PreprocessedFolder" base_type="ctrl" dimension="0"/>
+<par name="WindowHandle" base_type="ctrl" dimension="0"/>
+</ic>
+</interface>
+<body>
+<c>*每个样本图才处理成224*224分辨率、3通道、-127到128亮度级图像</c>
+<l>DLClassifierHandle := 1902471203888</l>
+<l>DlImageWidth := 224</l>
+<l>DlImageHeight := 224</l>
+<l>DlNumChannels := 3</l>
+<l>DlRangeMin := -127.0</l>
+<l>DlRangeMax := 128.0</l>
+<c></c>
+<l>for i := 0 to |RawImageFiles|-1 by 1</l>
+<c>    *读取样本文件</c>
+<l>    read_image (Image,RawImageFiles[i])</l>
+<c>         </c>
+<c>    *将图片缩放到网络模型需求的大小</c>
+<l>    zoom_image_size (Image, Image, DlImageWidth, DlImageHeight, 'constant')</l>
+<c>    *将图片的灰度缩放成网络模型需求范围</c>
+<c>    *类型转换</c>
+<l>    convert_image_type (Image, Image, 'real')</l>
+<l>    RescaleRange := (DlRangeMax-DlRangeMin)/255.0</l>
+<c>    *缩放图像的灰度值</c>
+<l>    scale_image (Image, Image, RescaleRange, DlRangeMin)</l>
+<c>    *合成三通道图片</c>
+<c>    *获取图片通道个数</c>
+<l>    count_obj (Image, Number)</l>
+<l>    for j := 1 to Number by 1    </l>
+<l>        select_obj (Image, ObjectSelected, j)</l>
+<l>        count_channels (ObjectSelected, Channel)</l>
+<c>        *如果图片不是三通道图，将图片合成为三通道图</c>
+<l>        if (Channel != DlNumChannels)</l>
+<c>            *转换为3通道图像</c>
+<l>            compose3 (ObjectSelected, ObjectSelected, ObjectSelected, ThreeChannel)</l>
+<c>            *替换图元数组</c>
+<l>            replace_obj (Image, ThreeChannel, Image, 1)</l>
+<l>        endif</l>
+<l>    endfor</l>
+<c>    *并写入文件</c>
+<l>    write_object (Image, ObjectFilesOut[i])</l>
+<l>    dev_disp_preprocessing_progress (i, RawImageFiles, PreprocessedFolder, WindowHandle)</l>
+<l>endfor  </l>
+<c></c>
+</body>
+<docu id="Processing_images_and_write_files">
+<parameters>
+<parameter id="ObjectFilesOut"/>
+<parameter id="PreprocessedFolder"/>
+<parameter id="RawImageFiles"/>
+<parameter id="WindowHandle"/>
+</parameters>
+</docu>
+</procedure>
+</hdevelop>
