@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hdevelop file_version="1.2" halcon_version="18.11.1.0">
+<procedure name="main">
+<interface/>
+<body>
+<l>dev_update_off ()</l>
+<c></c>
+<c>*** 创建检测模型 ***</c>
+<c>**设置参数</c>
+<c>*必须的参数</c>
+<l>Backbone := 'pretrained_dl_classifier_compact.hdl'</l>
+<c>*class_ids的数量</c>
+<l>NumClasses := 6</l>
+<c>*模型所需图片的规格参数</c>
+<l>ImageWidth := 512</l>
+<l>ImageHeight := 320</l>
+<l>ImageNumChannels := 3</l>
+<c>*</c>
+<l>MinLevel := 2</l>
+<l>MaxLevel := 4</l>
+<l>NumSubscales := 3</l>
+<l>AspectRatios := [1.0,0.5,2.0]</l>
+<c>*容量参数</c>
+<l>Capacity := 'medium'</l>
+<c></c>
+<c>*创建模型参数字典</c>
+<l>create_dict (DLModelDetectionParam)</l>
+<l>set_dict_tuple (DLModelDetectionParam, 'image_width', ImageWidth)</l>
+<l>set_dict_tuple (DLModelDetectionParam, 'image_height', ImageHeight)</l>
+<l>set_dict_tuple (DLModelDetectionParam, 'image_num_channels', ImageNumChannels)</l>
+<l>set_dict_tuple (DLModelDetectionParam, 'min_level', MinLevel)</l>
+<l>set_dict_tuple (DLModelDetectionParam, 'max_level', MaxLevel)</l>
+<l>set_dict_tuple (DLModelDetectionParam, 'num_subscales', NumSubscales)</l>
+<l>set_dict_tuple (DLModelDetectionParam, 'aspect_ratios', AspectRatios)</l>
+<l>set_dict_tuple (DLModelDetectionParam, 'capacity', Capacity)</l>
+<c>* 创建模型</c>
+<l>create_dl_model_detection (Backbone, NumClasses, DLModelDetectionParam, DLModelHandle)</l>
+<c></c>
+<c>***　预处理数据　***</c>
+<c>**设置路径</c>
+<c>*总路径</c>
+<l>DataDir := 'E:/视觉/halcon_深度学习/DeepLearning/目标检测'</l>
+<c>*图片路径</c>
+<l>HalconImageDir:= DataDir + '/testImages/'</l>
+<c>*数据集路径</c>
+<l>PillBagHdictFile := DataDir + '/images.hdict'</l>
+<c>*输出的模型路径</c>
+<l>DLModelFileName := DataDir + '/pretrained_dl_model_detection.hdl'</l>
+<c>* 用于预处理数据集的输出</c>
+<l>DataDirectory := DataDir + '/dataset' </l>
+<c>* 分别存储预处理参数以便在推理过程中使用。</c>
+<l>PreprocessParamFileName := DataDirectory + '/dl_preprocess_param_' + ImageWidth + 'x' + ImageHeight</l>
+<c></c>
+<c>**设置参数</c>
+<l>TrainingPercent := 80</l>
+<l>ValidationPercent := 10</l>
+<c></c>
+<l>SeedRand := 42</l>
+<c></c>
+<c>*判断总路径是否存在</c>
+<l>file_exists (DataDir, FileExists)</l>
+<l>if (not FileExists)</l>
+<l>    make_dir (DataDir)</l>
+<l>endif</l>
+<c></c>
+<c>*读取数据集</c>
+<l>read_dict (PillBagHdictFile, [], [], DLDataset)</l>
+<c>*获取数据集ID给到模型参数</c>
+<l>get_dict_tuple (DLDataset, 'class_ids', ClassIDs)</l>
+<l>set_dl_model_param (DLModelHandle, 'class_ids', ClassIDs)</l>
+<c>*生成新的模型</c>
+<l>write_dl_model (DLModelHandle, DLModelFileName)</l>
+<l>set_system ('seed_rand', SeedRand)</l>
+<c>*分割数据集</c>
+<l>split_dl_dataset (DLDataset, TrainingPercent, ValidationPercent, [])</l>
+<c>*从模型中获取预处理参数</c>
+<l>create_dict (GenParam)</l>
+<l>set_dict_tuple (GenParam, 'overwrite_files', true)</l>
+<l>create_dl_preprocess_param_from_model (DLModelHandle, 'false', 'full_domain', [], [], [], DLPreprocessParam)</l>
+<c>*预处理</c>
+<l>preprocess_dl_dataset (DLDataset, DataDirectory, DLPreprocessParam, GenParam, DLDatasetFilename)</l>
+<c></c>
+<c>*** 训练 ***</c>
+<c>* 设置训练相关模型参数.</c>
+<l>set_dl_model_param (DLModelHandle, 'batch_size', 1)</l>
+<l>set_dl_model_param (DLModelHandle, 'learning_rate', 0.001)</l>
+<l>set_dl_model_param (DLModelHandle, 'runtime_init', 'immediately')</l>
+<c></c>
+<c>* 创建在模型中使用的训练参数字典 </c>
+<c>*参数：模型、将训练模型的时期数（越大训练效果越好）、定义将多少时间传递给下一个模型评估</c>
+<c>*      是否显示训练进度、设置随机种子、输出参数的名称、输出参数的字典、输出句柄</c>
+<l>create_dl_train_param (DLModelHandle, 20, 1, 'true', 42, [], [], TrainParam)</l>
+<c>*在数据集上训练一个基于深度学习的模型</c>
+<l>train_dl_model (DLDataset, DLModelHandle, TrainParam, 0, TrainResults, TrainInfos, EvaluationInfos)</l>
+<c>* </c>
+<c>* 读取最佳模型，该模型由train_dl_model写入文件</c>
+<l>read_dl_model ('model_best.hdl', DLModelHandle)</l>
+<l>dev_disp_text ('Press F5 to continue', 'window', 'bottom', 'left', 'black', [], [])</l>
+<l>stop ()</l>
+<c>* </c>
+<l>dev_close_window ()</l>
+<l>dev_close_window ()</l>
+<c></c>
+<c>*** 评估 ***</c>
+<l>create_dict (WindowDict)</l>
+<l>create_dict (GenParamEval)</l>
+<l>set_dict_tuple (GenParamEval, 'detailed_evaluation', true)</l>
+<l>set_dict_tuple (GenParamEval, 'show_progress', true)</l>
+<c>*对选定的DLDataset样本评估DLModelHandle给出的模型。</c>
+<l>evaluate_dl_model (DLDataset, DLModelHandle, 'split', 'test', GenParamEval, EvaluationResult, EvalParams)</l>
+<c>* </c>
+<l>create_dict (DisplayMode)</l>
+<l>set_dict_tuple (DisplayMode, 'display_mode', ['pie_charts_precision','pie_charts_recall'])</l>
+<c>*可视化类型检测模型的详细评估结果</c>
+<l>dev_display_detection_detailed_evaluation (EvaluationResult, EvalParams, DisplayMode, WindowDict)</l>
+<l>stop ()</l>
+<c>*关闭字典中包含句柄的所有窗口。</c>
+<l>dev_display_dl_data_close_windows (WindowDict)</l>
+<c></c>
+<c>*** 测试 ***</c>
+<c>*获取该路径下的所有图片  </c>
+<l>list_image_files (HalconImageDir, 'default', 'recursive', ImageFiles)</l>
+<c>*对图片文件进行随机排序</c>
+<l>tuple_shuffle (ImageFiles, ImageFilesShuffled)</l>
+<c>*每次读取一张</c>
+<l>set_dl_model_param (DLModelHandle, 'batch_size', 1)</l>
+<l>for i := 0 to |ImageFiles|-1 by 1</l>
+<l>    read_image (Image, ImageFilesShuffled[i])</l>
+<l>    gen_dl_samples_from_images (Image, DLSampleInference)</l>
+<l>    preprocess_dl_samples (DLSampleInference, DLPreprocessParam)</l>
+<l>    apply_dl_model (DLModelHandle, DLSampleInference, [], DLResult)</l>
+<c>    *为一个示例可视化不同的图像、注释和推理结果。</c>
+<l>    dev_display_dl_data (DLSampleInference, DLResult, DLDataset, 'bbox_result', [], WindowDict) </l>
+<l>    dev_disp_text ('Press Run (F5) to continue', 'window', 'bottom', 'right', 'black', [], [])</l>
+<l>    stop ()</l>
+<l>endfor</l>
+<c>*关闭可视化窗体</c>
+<l>dev_display_dl_data_close_windows (WindowDict)</l>
+<c></c>
+</body>
+<docu id="main">
+<parameters/>
+</docu>
+</procedure>
+</hdevelop>
